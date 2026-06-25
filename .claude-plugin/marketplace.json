@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "giladbarnea",
+  "description": "Gilad Barnea's Claude Code plugins.",
+  "owner": {
+    "name": "Gilad Barnea",
+    "url": "https://github.com/giladbarnea"
+  },
+  "plugins": [
+    {
+      "name": "in-html",
+      "source": "./",
+      "description": "Build a reusable local HTML page for a CLI-agent review loop, with selectable boilerplate layers — styling, browser interactions, and optional Shift+click annotations persisted to JSON.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Gilad Barnea",
+        "url": "https://github.com/giladbarnea"
+      },
+      "homepage": "https://github.com/giladbarnea/in-html",
+      "category": "productivity"
+    }
+  ]
+}
