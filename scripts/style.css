@@ -2649,6 +2649,11 @@ pre code {
     display: table;
     width: 100%;
   }
+  /* Give the narrow label column ~50% more room so phrases wrap less. */
+  table.data th:first-child,
+  table.data td:first-child {
+    min-width: 9.75rem;
+  }
   :is(.callout, .record, .pane, .qbox, .qa, .gate) {
     max-width: 100%;
   }
@@ -3103,6 +3108,14 @@ table.data td {
 table.data th:first-child,
 table.data td:first-child {
   padding-inline-start: 0.25rem;
+}
+/* Table cells wrap at word boundaries, never mid-word. The #content selector
+   raises specificity above the mobile `#content { overflow-wrap: anywhere }`
+   rule, which otherwise shatters narrow label columns one character per line. */
+#content table.data th,
+#content table.data td {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 /* callouts → 16px radius, roomier */
