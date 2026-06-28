@@ -1199,10 +1199,19 @@ table.data td {
   padding: 0.42rem 0.5rem;
   vertical-align: top;
 }
-table.data td.num {
+table.data :is(th, td).num,
+table.data :is(th, td).fit {
+  width: 1%;
+  white-space: nowrap;
+}
+table.data :is(th, td).fit {
+  max-width: var(--fit-column-max, 9.75rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+table.data :is(th, td).num {
   text-align: end;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 table.data tr.total td {
   border-top: 2px solid var(--ink);
@@ -1283,6 +1292,59 @@ table.data tr.total td {
 .diff-bar .grow {
   flex: 1;
 }
+.diff-fullscreen-toggle {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--faint);
+  font-size: 1rem;
+  line-height: 1;
+}
+@media (hover: hover) {
+  .diff-fullscreen-toggle:hover {
+    border-color: var(--rule-dash);
+    color: var(--ink);
+  }
+}
+body.diff-fullscreen-open {
+  overflow: hidden;
+}
+.diff.diff-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.diff.diff-fullscreen .diff-bar {
+  flex: none;
+  padding-block-start: max(0.5rem, env(safe-area-inset-top));
+  padding-inline-start: max(0.7rem, env(safe-area-inset-left));
+  padding-inline-end: max(0.7rem, env(safe-area-inset-right));
+}
+.diff.diff-fullscreen .dcols {
+  flex: none;
+}
+.diff.diff-fullscreen .diff-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-block-end: env(safe-area-inset-bottom);
+}
 .dcols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1346,6 +1408,36 @@ table.data tr.total td {
   border-radius: 3px;
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, var(--bad) 60%, transparent);
+}
+.diff :is(.tok-c, .tok-c1, .tok-cm, .tok-cp, .tok-cs) {
+  color: var(--muted);
+  font-style: italic;
+}
+.diff :is(.tok-k, .tok-kc, .tok-kd, .tok-kn, .tok-kp, .tok-kr, .tok-kt) {
+  color: light-dark(#6d28d9, #c4b5fd);
+  font-weight: 600;
+}
+.diff :is(.tok-s, .tok-s1, .tok-s2, .tok-sa, .tok-sb, .tok-sc, .tok-sd, .tok-se, .tok-sh, .tok-si, .tok-sx) {
+  color: light-dark(#0f766e, #5eead4);
+}
+.diff :is(.tok-m, .tok-mb, .tok-mf, .tok-mh, .tok-mi, .tok-mo) {
+  color: light-dark(#b45309, #fbbf24);
+}
+.diff :is(.tok-nf, .tok-fm) {
+  color: light-dark(#2563eb, #93c5fd);
+}
+.diff :is(.tok-nc, .tok-nn, .tok-nt, .tok-gh) {
+  color: light-dark(#7c3aed, #d8b4fe);
+  font-weight: 600;
+}
+.diff :is(.tok-na, .tok-nb, .tok-nv, .tok-vg, .tok-vi, .tok-vm, .tok-bp) {
+  color: light-dark(#0369a1, #7dd3fc);
+}
+.diff :is(.tok-o, .tok-ow, .tok-p) {
+  color: color-mix(in srgb, var(--ink) 82%, var(--accent));
+}
+.diff .tok-err {
+  color: var(--bad);
 }
 .dchange {
   border-inline-start: 3px solid var(--rule);
@@ -2648,11 +2740,6 @@ pre code {
   table.data tbody {
     display: table;
     width: 100%;
-  }
-  /* Give the narrow label column ~50% more room so phrases wrap less. */
-  table.data th:first-child,
-  table.data td:first-child {
-    min-width: 9.75rem;
   }
   :is(.callout, .record, .pane, .qbox, .qa, .gate) {
     max-width: 100%;

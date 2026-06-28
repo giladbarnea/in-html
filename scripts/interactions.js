@@ -403,6 +403,70 @@
     });
   }
 
+  function setupDiffFullscreen() {
+    const fullscreenClass = "diff-fullscreen";
+    const bodyClass = "diff-fullscreen-open";
+
+    function setButtonState(button, expanded) {
+      button.setAttribute("aria-expanded", String(expanded));
+      button.setAttribute(
+        "aria-label",
+        expanded ? "Exit full screen diff" : "Expand diff to full screen",
+      );
+      button.querySelector(".diff-fullscreen-icon").textContent = expanded
+        ? "×"
+        : "⛶";
+    }
+
+    function closeOpenDiff() {
+      const openDiff = document.querySelector(`.diff.${fullscreenClass}`);
+      if (!openDiff) {
+        return;
+      }
+
+      const button = openDiff.querySelector(".diff-fullscreen-toggle");
+      openDiff.classList.remove(fullscreenClass);
+      document.body.classList.remove(bodyClass);
+      if (button) {
+        setButtonState(button, false);
+      }
+    }
+
+    document.querySelectorAll(".diff").forEach((diff) => {
+      const bar = diff.querySelector(".diff-bar");
+      if (!bar || bar.querySelector(".diff-fullscreen-toggle")) {
+        return;
+      }
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "diff-fullscreen-toggle";
+      button.dataset.annotationIgnore = "";
+      button.dataset.annotationUi = "diff-fullscreen";
+      button.innerHTML =
+        '<span class="diff-fullscreen-icon" aria-hidden="true">⛶</span>';
+      setButtonState(button, false);
+      button.addEventListener("click", () => {
+        const expanded = diff.classList.contains(fullscreenClass);
+        closeOpenDiff();
+        if (expanded) {
+          return;
+        }
+
+        diff.classList.add(fullscreenClass);
+        document.body.classList.add(bodyClass);
+        setButtonState(button, true);
+      });
+      bar.append(button);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeOpenDiff();
+      }
+    });
+  }
+
   // Glossary terms have no hover on touch, so a tap toggles the tip open (the
   // CSS reveals the same .tip surface on .term-open). Behavior follows the
   // event — only touch taps run this; fine pointers keep the CSS :hover path.
@@ -428,5 +492,6 @@
   setupCrossReferences();
   setupChrome();
   setupCodeCopy();
+  setupDiffFullscreen();
   setupGlossaryTouch();
 })();

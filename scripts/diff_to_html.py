@@ -1,15 +1,20 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = []
+# dependencies = ["Pygments>=2.18"]
 # ///
 """Render two texts as an in-html `.diff` fragment — line + word-level changeset.
 
 Emits the `.diff` component markup (see the "Line/word-level diff" section of
 components.md): a side-by-side ↔ unified view (pure-CSS toggle), collapsible
-unchanged context, intraline word highlights, and #-addressable change blocks
-with Prev/Next stepping. Paste the output into the `CONTENT` block of a
-template, then inline `style.css` with `inline-css.py`.
+unchanged context, intraline word highlights, syntax-highlighted code for a
+small language whitelist, and #-addressable change blocks with Prev/Next
+stepping. Paste the output into the `CONTENT` block of a template, then inline
+`style.css` with `inline-css.py`.
+
+Cells render monospace `pre-wrap`, so don't feed space-aligned tables through:
+the padding spaces are preserved and wrap into ragged gaps on narrow screens.
+Diff the prose only and render tabular content with the `.data` table component.
 
 The diff is the reusable kernel; the *meaning* of each change is yours to
 supply. An optional annotations JSON tags change blocks with a badge/title/note:
@@ -24,6 +29,7 @@ anywhere in the block. `tag` ∈ {blue, amber, green, red} (reuses `.tag` colors
 
 Usage:
     ./diff_to_html.py OLD NEW --left-label "world" --right-label "main"
+    ./diff_to_html.py a.md b.md --id pricing --language markdown
     ./diff_to_html.py a.md b.md --id pricing --annotations notes.json -o frag.html
 
 To diff two git revisions, materialize them first:
@@ -39,65 +45,243 @@ import re
 import sys
 from pathlib import Path
 
+from pygments.formatters import HtmlFormatter
+from pygments.lexer import Lexer
+from pygments.lexers import get_lexer_by_name
+
 _WORD = re.compile(r"(\s+)")
+
+_LANGUAGE_ALIASES: dict[str, str | None] = {
+    "none": None,
+    "md": "markdown",
+    "markdown": "markdown",
+    "py": "python",
+    "python": "python",
+    "sh": "shell",
+    "shell": "shell",
+    "bash": "shell",
+    "zsh": "shell",
+    "ts": "typescript",
+    "tsx": "typescript",
+    "typescript": "typescript",
+}
+_EXTENSION_LANGUAGES = {
+    ".bash": "shell",
+    ".cts": "typescript",
+    ".markdown": "markdown",
+    ".md": "markdown",
+    ".mts": "typescript",
+    ".py": "python",
+    ".sh": "shell",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".zsh": "shell",
+}
+_SHELL_BASENAMES = {
+    ".bash_profile",
+    ".bashrc",
+    ".profile",
+    ".zprofile",
+    ".zshrc",
+    "bash_profile",
+    "bashrc",
+    "profile",
+    "zprofile",
+    "zshrc",
+}
+_SUPPORTED_LANGUAGE_OPTIONS = ["auto", *_LANGUAGE_ALIASES]
+TokenRange = tuple[str, int, int]
 
 
 def esc(s: str) -> str:
     return html.escape(s, quote=True)
 
 
-def word_diff(a: str, b: str) -> tuple[str, str]:
+def normalize_language(language: str | None) -> str | None:
+    """Return the canonical whitelist language name.
+
+    >>> normalize_language("ts")
+    'typescript'
+    >>> normalize_language("none") is None
+    True
+    """
+    if language is None:
+        return None
+    key = language.lower()
+    if key == "auto":
+        raise ValueError("auto must be resolved from file paths")
+    if key not in _LANGUAGE_ALIASES:
+        supported = ", ".join(_SUPPORTED_LANGUAGE_OPTIONS)
+        raise ValueError(f"unsupported language {language!r}; expected one of: {supported}")
+    return _LANGUAGE_ALIASES[key]
+
+
+def language_for_path(path: Path) -> str | None:
+    """Detect a whitelisted language from a path.
+
+    >>> language_for_path(Path("example.tsx"))
+    'typescript'
+    >>> language_for_path(Path(".zshrc"))
+    'shell'
+    """
+    basename = path.name.lower()
+    if basename in _SHELL_BASENAMES:
+        return "shell"
+    return _EXTENSION_LANGUAGES.get(path.suffix.lower())
+
+
+def language_for_paths(left_path: Path, right_path: Path, requested: str) -> str | None:
+    """Resolve the requested language, preferring the new/right path for auto.
+
+    >>> language_for_paths(Path("old.txt"), Path("new.py"), "auto")
+    'python'
+    >>> language_for_paths(Path("old.txt"), Path("new.txt"), "auto") is None
+    True
+    """
+    if requested != "auto":
+        return normalize_language(requested)
+    return language_for_path(right_path) or language_for_path(left_path)
+
+
+class SyntaxHighlighter:
+    def __init__(self, language: str | None) -> None:
+        canonical_language = normalize_language(language) if language else None
+        self.lexer: Lexer | None = (
+            get_lexer_by_name(canonical_language) if canonical_language else None
+        )
+        self.formatter: HtmlFormatter | None = (
+            HtmlFormatter(nowrap=True, classprefix="tok-") if canonical_language else None
+        )
+
+    def render_range(self, line: str, start: int, end: int) -> str:
+        if not self.lexer or not self.formatter:
+            return esc(line[start:end])
+
+        fragments = []
+        for token_start, token_type, token_text in self.lexer.get_tokens_unprocessed(line):
+            token_end = token_start + len(token_text)
+            overlap_start = max(start, token_start)
+            overlap_end = min(end, token_end)
+            if overlap_start >= overlap_end:
+                continue
+
+            fragment = token_text[
+                overlap_start - token_start : overlap_end - token_start
+            ]
+            token_class = self.formatter._get_css_class(token_type)
+            escaped = esc(fragment)
+            if token_class == "tok-w":
+                fragments.append(escaped)
+                continue
+            fragments.append(
+                f'<span class="{token_class}">{escaped}</span>' if token_class else escaped
+            )
+        return "".join(fragments)
+
+    def render_line(self, line: str) -> str:
+        return self.render_range(line, 0, len(line))
+
+
+PLAIN_HIGHLIGHTER = SyntaxHighlighter(None)
+
+
+def split_tokens_with_ranges(line: str) -> list[TokenRange]:
+    """Split on whitespace while keeping original character ranges.
+
+    >>> split_tokens_with_ranges("a  b")
+    [('a', 0, 1), ('  ', 1, 3), ('b', 3, 4)]
+    """
+    tokens = []
+    position = 0
+    for token in _WORD.split(line):
+        end = position + len(token)
+        if token:
+            tokens.append((token, position, end))
+        position = end
+    return tokens
+
+
+def highlighted_token_range(
+    line: str,
+    tokens: list[TokenRange],
+    start: int,
+    end: int,
+    highlighter: SyntaxHighlighter,
+) -> str:
+    if start == end:
+        return ""
+    return highlighter.render_range(line, tokens[start][1], tokens[end - 1][2])
+
+
+def word_diff(
+    a: str,
+    b: str,
+    highlighter: SyntaxHighlighter = PLAIN_HIGHLIGHTER,
+) -> tuple[str, str]:
     """Intraline diff of two lines → (left_html, right_html) with .wd add/del spans.
 
     >>> word_diff("the cat sat", "the dog sat")
     ('the <span class="wd del">cat</span> sat', 'the <span class="wd add">dog</span> sat')
     """
-    at = [t for t in _WORD.split(a) if t != ""]
-    bt = [t for t in _WORD.split(b) if t != ""]
-    sm = difflib.SequenceMatcher(a=at, b=bt, autojunk=False)
+    left_tokens = split_tokens_with_ranges(a)
+    right_tokens = split_tokens_with_ranges(b)
+    sm = difflib.SequenceMatcher(
+        a=[token for token, _start, _end in left_tokens],
+        b=[token for token, _start, _end in right_tokens],
+        autojunk=False,
+    )
     left, right = [], []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        lt, rt = esc("".join(at[i1:i2])), esc("".join(bt[j1:j2]))
+        left_html = highlighted_token_range(a, left_tokens, i1, i2, highlighter)
+        right_html = highlighted_token_range(b, right_tokens, j1, j2, highlighter)
         if tag == "equal":
-            left.append(lt)
-            right.append(rt)
+            left.append(left_html)
+            right.append(right_html)
         elif tag == "replace":
-            if lt:
-                left.append(f'<span class="wd del">{lt}</span>')
-            if rt:
-                right.append(f'<span class="wd add">{rt}</span>')
+            if left_html:
+                left.append(f'<span class="wd del">{left_html}</span>')
+            if right_html:
+                right.append(f'<span class="wd add">{right_html}</span>')
         elif tag == "delete":
-            left.append(f'<span class="wd del">{lt}</span>')
+            left.append(f'<span class="wd del">{left_html}</span>')
         elif tag == "insert":
-            right.append(f'<span class="wd add">{rt}</span>')
+            right.append(f'<span class="wd add">{right_html}</span>')
     return "".join(left), "".join(right)
 
 
-def _ctx_row(l: str, r: str) -> str:
+def line_html(line: str, highlighter: SyntaxHighlighter) -> str:
+    return highlighter.render_line(line) or "&nbsp;"
+
+
+def _ctx_row(l: str, r: str, highlighter: SyntaxHighlighter) -> str:
     return (
-        f'<div class="drow ctx"><div class="dc l" dir="auto">{esc(l) or "&nbsp;"}</div>'
-        f'<div class="dc r" dir="auto">{esc(r) or "&nbsp;"}</div></div>'
+        f'<div class="drow ctx"><div class="dc l" dir="auto">{line_html(l, highlighter)}</div>'
+        f'<div class="dc r" dir="auto">{line_html(r, highlighter)}</div></div>'
     )
 
 
-def _change_rows(left_lines: list[str], right_lines: list[str]) -> str:
+def _change_rows(
+    left_lines: list[str],
+    right_lines: list[str],
+    highlighter: SyntaxHighlighter,
+) -> str:
     rows = []
     paired = min(len(left_lines), len(right_lines))
     for n in range(paired):
-        lh, rh = word_diff(left_lines[n], right_lines[n])
+        lh, rh = word_diff(left_lines[n], right_lines[n], highlighter)
         rows.append(
             f'<div class="drow"><div class="dc l del" dir="auto">{lh or "&nbsp;"}</div>'
             f'<div class="dc r add" dir="auto">{rh or "&nbsp;"}</div></div>'
         )
     for n in range(paired, len(left_lines)):  # extra deletions
         rows.append(
-            f'<div class="drow"><div class="dc l del" dir="auto">{esc(left_lines[n]) or "&nbsp;"}</div>'
+            f'<div class="drow"><div class="dc l del" dir="auto">{line_html(left_lines[n], highlighter)}</div>'
             f'<div class="dc r empty"></div></div>'
         )
     for n in range(paired, len(right_lines)):  # extra insertions
         rows.append(
             f'<div class="drow"><div class="dc l empty"></div>'
-            f'<div class="dc r add" dir="auto">{esc(right_lines[n]) or "&nbsp;"}</div></div>'
+            f'<div class="dc r add" dir="auto">{line_html(right_lines[n], highlighter)}</div></div>'
         )
     return "".join(rows)
 
@@ -122,9 +306,11 @@ def render_diff(
     diff_id: str = "d1",
     annotations: list[dict] | None = None,
     context: int = 3,
+    language: str | None = None,
 ) -> str:
     """Return the `.diff` fragment comparing left → right (whole texts)."""
     annotations = annotations or []
+    highlighter = SyntaxHighlighter(language)
     llines, rlines = left.splitlines(), right.splitlines()
     sm = difflib.SequenceMatcher(a=llines, b=rlines, autojunk=False)
 
@@ -138,7 +324,10 @@ def render_diff(
     for kind, i1, i2, j1, j2 in raw:
         if kind == "ctx":
             length = i2 - i1
-            rows = "".join(_ctx_row(llines[i1 + k], rlines[j1 + k]) for k in range(length))
+            rows = "".join(
+                _ctx_row(llines[i1 + k], rlines[j1 + k], highlighter)
+                for k in range(length)
+            )
             if length > context:
                 body.append(
                     f'<details class="dctx"><summary>{length} unchanged line'
@@ -148,7 +337,7 @@ def render_diff(
                 body.append(rows)
             continue
         n += 1
-        rows = _change_rows(llines[i1:i2], rlines[j1:j2])
+        rows = _change_rows(llines[i1:i2], rlines[j1:j2], highlighter)
         ann = _annotation_for(n, rows, annotations)
         accent = f' {ann["tag"]}' if ann and ann.get("tag") else ""
         badge = f'<span class="tag {ann["tag"]}">{esc(ann["label"])}</span> ' if ann and ann.get("label") else ""
@@ -195,6 +384,7 @@ def main() -> None:
     p.add_argument("--right-label", default="after")
     p.add_argument("--id", dest="diff_id", default="d1", help="unique id prefix (for multiple diffs on one page)")
     p.add_argument("--context", type=int, default=3, help="unchanged lines shown inline before collapsing")
+    p.add_argument("--language", default="auto", choices=_SUPPORTED_LANGUAGE_OPTIONS, help="syntax highlighting language; auto uses the input file extension")
     p.add_argument("--annotations", type=Path, help="JSON list of change-block annotations")
     p.add_argument("-o", "--output", type=Path, help="write fragment here (default: stdout)")
     args = p.parse_args()
@@ -211,6 +401,7 @@ def main() -> None:
         diff_id=args.diff_id,
         annotations=annotations,
         context=args.context,
+        language=language_for_paths(args.left, args.right, args.language),
     )
     if args.output:
         args.output.write_text(fragment)

@@ -1,6 +1,6 @@
 ---
 description: Ready-made copy-paste components for in-html pages, with layer requirements and markup.
-last_updated: 2026-06-19 17:08
+last_updated: 2026-06-28 07:58
 ---
 
 # in-html ready-made components
@@ -85,7 +85,7 @@ Bare click switches panels. With layer 3, Shift+click annotates instead.
 
 ## Line / word-level diff
 
-Requires layer 1. The native shape for **"what changed between these two texts"** — a precise line + intraline-word diff with a Side-by-side ↔ Unified toggle (pure CSS, the same `.seg` + `:has()` mechanism as the panels above), collapsible unchanged context, and change blocks that are `#`-addressable so **Prev / Next** are plain anchor jumps (no JS — works in iOS Quick Look). Reach for it over `.ba` panes whenever the comparison is two *versions of the same text* rather than two unrelated alternatives.
+Requires layer 1. The native shape for **"what changed between these two texts"** — a precise line + intraline-word diff with a Side-by-side ↔ Unified toggle (pure CSS, the same `.seg` + `:has()` mechanism as the panels above), collapsible unchanged context, and change blocks that are `#`-addressable so **Prev / Next** are plain anchor jumps (no JS — works in iOS Quick Look). Layer 2+ adds a ⛶ control in the diff bar that expands the diff over the viewport for narrow screens. Reach for it over `.ba` panes whenever the comparison is two *versions of the same text* rather than two unrelated alternatives.
 
 Don't hand-write the rows — **generate them**. The diff is mechanical; only the *meaning* of each change is yours:
 
@@ -94,9 +94,11 @@ Don't hand-write the rows — **generate them**. The diff is mechanical; only th
 scripts/diff_to_html.py OLD NEW --left-label before --right-label after --id d1 > frag.html
 # with annotations, and a unique id when a page holds more than one diff:
 scripts/diff_to_html.py a.md b.md --id pricing --annotations notes.json
+# force or disable syntax highlighting when extension-based auto-detection is wrong:
+scripts/diff_to_html.py before.txt after.txt --language python
 ```
 
-Paste the fragment into the `CONTENT` block, then inline `style.css` as usual. `--context N` sets how many unchanged lines stay inline before a run collapses into a `<details>`.
+Paste the fragment into the `CONTENT` block, then inline `style.css` as usual. `--context N` sets how many unchanged lines stay inline before a run collapses into a `<details>`. `--language auto` is the default and highlights only the whitelist (`markdown`, `typescript`, `python`, `shell`) from the input paths; pass `--language none` for plain text.
 
 **Annotations** are an optional JSON list that tags change blocks. Match a block by 1-based change index (`n`) or by a `match` substring found anywhere in it; `tag` ∈ `blue` `amber` `green` `red` (reuses the `.tag` palette as the block's left-rail accent). The diff component invents nothing — supply the labels:
 
@@ -107,7 +109,9 @@ Paste the fragment into the `CONTENT` block, then inline `style.css` as usual. `
 ]
 ```
 
-Class anatomy, if you ever need to author or post-edit a block by hand: `.diff` wraps a `.diff-bar` (holds the `.seg.diff-view` toggle), a `.dcols` header (`.l`/`.r` labels), and `.diff-body`. Inside, each line is a `.drow` of two cells `.dc.l` / `.dc.r`; changed cells carry `.del` (red) or `.add` (green), an absent side is `.dc.empty` (hatched), and intraline spans are `.wd.del` / `.wd.add`. An annotated change is a `<section class="dchange {tag}" id="{id}-c{n}">` with a `.dhead` and a `.dnav` (Prev/All/Next anchors). Unchanged runs collapse inside `<details class="dctx">`. Narrow screens fold to the unified stacked form automatically.
+**Don't feed space-aligned tables through the diff.** Cells render monospace `pre-wrap`, which preserves every run of padding spaces; on narrow screens the line wraps and those gutters land mid-line as ragged gaps. Diff the prose only and render tabular content with the `.data` table component instead.
+
+Class anatomy, if you ever need to author or post-edit a block by hand: `.diff` wraps a `.diff-bar` (holds the `.seg.diff-view` toggle), a `.dcols` header (`.l`/`.r` labels), and `.diff-body`. Inside, each line is a `.drow` of two cells `.dc.l` / `.dc.r`; changed cells carry `.del` (red) or `.add` (green), an absent side is `.dc.empty` (hatched), intraline spans are `.wd.del` / `.wd.add`, and generated syntax spans are scoped Pygments classes like `.tok-k` / `.tok-s`. An annotated change is a `<section class="dchange {tag}" id="{id}-c{n}">` with a `.dhead` and a `.dnav` (Prev/All/Next anchors). Unchanged runs collapse inside `<details class="dctx">`. Narrow screens fold to the unified stacked form automatically.
 
 ## Chip toggle + highlights/notes
 
@@ -362,14 +366,14 @@ Speaker labels default to "YOU" (`.ans`) and "ME" (`.resp`); override with `data
 
 ## Data table
 
-Requires layer 1 only. For line items, build-ups, and per-row facts with numbers — estimates × hours, party × risk × move, cohort funnels. `td.num` right-aligns with tabular numerals; `tr.total` draws a summing rule. Headers/cells use logical alignment (`text-align: start/end`), so RTL works.
+Requires layer 1 only. For line items, build-ups, and per-row facts with numbers — estimates × hours, party × risk × move, cohort funnels. `td.num` right-aligns with tabular numerals and shrink-wraps; `.fit` shrink-wraps short identifier/status columns, capped by `--fit-column-max` (default `9.75rem`) with ellipsis for longer values. Put the class on the header and each cell in that column. `tr.total` draws a summing rule. Headers/cells use logical alignment (`text-align: start/end`), so RTL works.
 
 ```html
 <table class="data" data-annotate-whole data-annotation-id="buildup">
-  <tr><th>work item</th><th class="num">hours</th></tr>
-  <tr><td>First line item</td><td class="num">38</td></tr>
-  <tr><td>Second line item</td><td class="num">20</td></tr>
-  <tr class="total"><td>Total</td><td class="num">58</td></tr>
+  <tr><th class="fit">#</th><th>work item</th><th class="num">hours</th></tr>
+  <tr><td class="fit">A</td><td>First line item</td><td class="num">38</td></tr>
+  <tr><td class="fit">B</td><td>Second line item</td><td class="num">20</td></tr>
+  <tr class="total"><td class="fit"></td><td>Total</td><td class="num">58</td></tr>
 </table>
 ```
 
