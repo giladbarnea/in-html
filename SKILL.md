@@ -6,7 +6,11 @@ last_updated: 2026-06-29
 
 # in-html
 
-Use this skill when the user wants an answer or artifact as a local HTML page. The page should do what Markdown cannot: turn dense material into a small, readable docs product with visual structure, useful interaction, and optional reviewer annotations. Do not decorate the same prose in boxes; identify the hidden shape of the material and make that shape visible.
+Use this skill when the user wants an answer or artifact as a local HTML page. Its purpose is to help you convey dense, complex information to a human in a more brain-friendly way — not with more words, but with the added power of design that HTML, CSS, and JavaScript unlock over Markdown. Approach each page as an information-design product: what can layout, typography, interaction, visual hierarchy, and annotation communicate that chat cannot?
+
+Draw on the basic tenets of universally good design: Edward Tufte’s **visualization**; Josef Müller-Brockmann’s **layout and whitespace**; Richard Saul Wurman’s **information architecture**; Don Norman’s and Jakob Nielsen’s **user experience**; Gestalt **attention management**; Jan Tschichold’s and Robert Bringhurst’s **typography**; and Dieter Rams’s **beauty**.
+
+Do not decorate the same prose in boxes; identify the hidden shape of the material and make that shape visible.
 
 Choose the richest layer the environment supports:
 
