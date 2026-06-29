@@ -119,14 +119,20 @@
 
     // Following a reference is a context switch; the return pill is the way
     // back. Each jump pushes the departure scroll position, so chained
-    // references unwind in order. Returning clears the hash so re-clicking
-    // the same reference jumps (and :target-flashes) again.
+    // references unwind in order. Returning or dismissing clears the hash so
+    // re-clicking the same reference jumps (and :target-flashes) again.
     const returnStack = [];
     const returnButton = document.createElement("button");
     returnButton.type = "button";
     returnButton.className = "crossref-return";
     returnButton.dataset.annotationUi = "crossref-return";
     returnButton.textContent = "↩ Back to where you were";
+    function dismissReturnButton() {
+      returnStack.length = 0;
+      returnButton.classList.remove("show");
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+
     returnButton.addEventListener("click", () => {
       const departureScrollY = returnStack.pop();
       history.replaceState(null, "", location.pathname + location.search);
@@ -138,6 +144,15 @@
     document.body.append(returnButton);
 
     document.addEventListener("click", (event) => {
+      const clickedReturnButton = event.target.closest(".crossref-return");
+      if (returnButton.classList.contains("show") && !clickedReturnButton) {
+        dismissReturnButton();
+        return;
+      }
+      if (clickedReturnButton) {
+        return;
+      }
+
       const anchor = event.target.closest('a[href^="#"]');
       if (!anchor || anchor.classList.contains("refbroken")) {
         return;
