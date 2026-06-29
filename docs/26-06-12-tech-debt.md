@@ -15,7 +15,7 @@ would assume were written together. The chrome shares one vocabulary: accent-tin
 (marker, touch action bar, crossref return pill, note actions) all look like siblings. Note
 editing also lands on the right side of the mobile architecture by construction — plain buttons
 and contenteditable are input-agnostic, the touch layer explicitly ignores everything inside a
-preview, so notes needed zero device-branching, exactly the contract AGENTS.md prescribes.
+preview, so notes needed zero device-branching, exactly the contract `DEVELOPMENT.md` preserves.
 Keyboard grammar is parallel: Enter commits and Escape backs out in both the composer and the
 notes.
 
@@ -54,6 +54,6 @@ notes.
 
 Unify the Save button design and the failure/success feedback (items 2–3, mechanical), then make
 one deliberate decision on item 1 — either give the composer its footer on desktop too, or accept
-the state-display rationale and write it down in AGENTS.md so the asymmetry reads as intent rather
+the state-display rationale and write it down in `DEVELOPMENT.md` so the asymmetry reads as intent rather
 than accident. Item 4 deserves a think before any code: e.g., a tap-again-to-confirm Delete on
 coarse pointers, or exempting tombstoned previews from tap-to-dismiss.
