@@ -232,11 +232,6 @@
     const spacer = document.createElement("span");
     spacer.className = "page-bar-spacer";
 
-    const search = document.createElement("div");
-    search.className = "page-search";
-    search.setAttribute("aria-hidden", "true");
-    search.innerHTML = '<span class="page-search-icon">⌕</span><span>Search</span><span class="page-search-kbd">⌘K</span>';
-
     const theme = document.createElement("button");
     theme.type = "button";
     theme.className = "page-theme-toggle";
@@ -250,7 +245,7 @@
     progress.className = "page-bar-progress";
     progress.dataset.annotationIgnore = "";
 
-    bar.append(toggle, brand, spacer, search, theme, progress);
+    bar.append(toggle, brand, spacer, theme, progress);
 
     const nav = document.createElement("nav");
     nav.className = "page-nav";

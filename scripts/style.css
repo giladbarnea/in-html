@@ -2265,26 +2265,6 @@ h3 {
 .page-bar-spacer {
   flex: 1;
 }
-.page-search {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 200px;
-  height: 34px;
-  padding: 0 0.7rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  background: var(--surface2);
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-.page-search-kbd {
-  margin-inline-start: auto;
-  padding: 0.05rem 0.32rem;
-  border: 1px solid var(--rule-dash);
-  border-radius: 5px;
-  font-size: 0.72rem;
-}
 .page-theme-toggle,
 .page-bar .page-bar-toggle {
   display: grid;
@@ -2655,9 +2635,6 @@ pre code {
 @media (max-width: 900px) {
   .has-chrome .wrap {
     padding: 2.2rem 1.2rem 6rem;
-  }
-  .page-search {
-    display: none;
   }
   .page-nav {
     width: min(82vw, 18rem);
