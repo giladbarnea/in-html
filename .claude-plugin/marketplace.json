@@ -11,7 +11,7 @@
       "name": "in-html",
       "source": "./",
       "description": "Build a reusable local HTML page for a CLI-agent review loop, with selectable boilerplate layers — styling, browser interactions, and optional Shift+click annotations persisted to JSON.",
-      "version": "1.0.7",
+      "version": "1.0.8",
       "author": {
         "name": "Gilad Barnea",
         "url": "https://github.com/giladbarnea"
