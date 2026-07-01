@@ -445,6 +445,8 @@ Requires layer 1. A pure-CSS map of left-item → right-item relations — cause
 </div>
 ```
 
+For a genuine 2D hub diagram (many-in / many-out around a central node) that the CSS shapes above can't express: inline an `<svg>` with a `viewBox` and no fixed `width` so it scales, use `currentColor` / theme vars instead of hardcoded hex, and reuse a shared arrowhead `<marker>`. It scales but won't reflow, so keep it for the rare case only.
+
 ## Stat row
 
 Requires layer 1. A row of compact Mintlify-style `Badge shape="pill"` metadata — counts, dates, status at a glance. Use it for facts, not controls; interactive switches belong in segmented tabs or `.chip.q` toggles.
