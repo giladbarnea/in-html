@@ -1,6 +1,6 @@
 ---
 description: Ready-made copy-paste components for in-html pages, with layer requirements and markup.
-last_updated: 2026-06-28 07:58
+last_updated: 2026-07-01
 ---
 
 # in-html ready-made components
@@ -445,7 +445,40 @@ Requires layer 1. A pure-CSS map of left-item → right-item relations — cause
 </div>
 ```
 
-For a genuine 2D hub diagram (many-in / many-out around a central node) that the CSS shapes above can't express: inline an `<svg>` with a `viewBox` and no fixed `width` so it scales, use `currentColor` / theme vars instead of hardcoded hex, and reuse a shared arrowhead `<marker>`. It scales but won't reflow, so keep it for the rare case only.
+For a genuine 2D relation (many-in / many-out around a central node, arbitrary block-to-block links) that the CSS shapes above can't express, use the **SVG diagram** component below.
+
+## SVG diagram (blocks + connectors)
+
+Requires layer 1. The native shape for a **2D block-and-connector diagram** — architecture / system overviews, processing pipelines, hub-and-spoke maps — that `.tree`, `.chain`, and `.relmap` can't express because those only run in one direction. Blocks sit on a grid; connectors join *any* block to *any* other. It's an inline `<svg>` that reads its palette from the page's CSS custom properties, so it inherits the light/dark theme with no inline-css step and renders offline.
+
+Don't hand-plot the SVG — **generate it** from a declarative spec. You describe blocks (each with an `id`) and connectors (between ids); the script resolves every coordinate. A spec is a small Python file that sets `DIAGRAM = Diagram(...)`; the names `Diagram`, `Grid`, `Block`, and `Conn` are already in scope, no import:
+
+```python
+# pipeline.py
+DIAGRAM = Diagram(
+    grid=Grid(col_widths=[158] * 5, node_h=56, gap_x=28, top=40, pad=8),
+    annotations=[(0, "RETRIEVAL = f( query, agent, governance, time )", 24)],
+    blocks=[
+        Block("cand", "Semantic",   kind="node", col=0, body=[("candidates", "sub")]),
+        Block("pol",  "Policy",     kind="step", col=1, body=[("scope · trust", "sub")]),
+        Block("temp", "Temporal",   kind="step", col=2, body=[("supersession", "sub")]),
+        Block("prov", "Provenance", kind="step", col=3, body=[("lineage", "sub")]),
+        Block("rank", "Ranked",     kind="term", col=4, body=[("delivery", "sub")]),
+    ],
+    conns=[Conn("cand", "pol"), Conn("pol", "temp"), Conn("temp", "prov"), Conn("prov", "rank")],
+    aria="Policy-governed retrieval pipeline: candidate generation … ranked delivery.")
+```
+
+```bash
+scripts/diagram.py pipeline.py > frag.svg   # paste frag.svg into the CONTENT block as-is
+scripts/diagram.py --demo                    # self-check the two built-in example specs
+```
+
+**The model.** A `Block` has an `id`, a `title`, optional `body` lines, a grid `col`/`row` (plus `rowspan` to span rows, as the hub's central node does), and a `kind` that picks its look: `node` (plain), `dim` (gold heading over a sub), `step` (pipeline stage), `core` (accented hub), `term` (terminal), `probe` (dashed). A `body` entry is `(text, role)` — roles `sub` / `coresub` / `monoacc` / `faint`, or `("", "rule")` for an internal divider; add a third field `"shrink"` to squeeze a line to fit on one line instead of wrapping. A `Conn` joins two ids with a `kind` (`flow` = arrow, `link` = plain line, `probe` = dashed arrow) and an optional `label`.
+
+You never write coordinates. The script places blocks on the grid, then for each connector infers which sides to leave and enter from the blocks' relative positions, and spreads connectors that share one edge so they fan without crossing. Text is measured and wrapped (or shrunk) so it never overflows its block, multi-line content is vertically centered, and connector labels carry a background halo so they stay legible over the lines they cross. Full spec shapes live in the built-in `HUB` and `PIPE` examples at the bottom of `scripts/diagram.py`.
+
+Prefer `.tree` / `.chain` / `.relmap` for one-directional relations that must reflow on a phone; reach for this when the relation is genuinely 2D.
 
 ## Stat row
 

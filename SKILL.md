@@ -113,6 +113,7 @@ The page's job is to install knowledge, not to restyle text. Before authoring, i
 | A path with barriers (locks, approvals, hops, conversions) | `.chain` gate chain |
 | Hierarchy, org chart, who-controls-what | `.tree` |
 | Cause → cure, problem → owner, any A-maps-to-B relation | `.relmap` relation map |
+| Architecture / system overview; a 2D map of blocks and their connections | SVG diagram (`diagram.py`) |
 | Process / sequence of stages | `.pipe` |
 | Comparison, before/after, either/or | `.ba` panes, segmented tabs |
 | Two versions of one text; exactly what changed | `.diff` line/word-level changeset (`diff_to_html.py`) |
@@ -144,7 +145,7 @@ At layers 2 and 3 the page is automatically wrapped in a three-pane docs frame b
 
 Use normal HTML first: `h1`, `.sub`, `.lead`, `h2`, `p`, `aside.note`, `.card`, `.callout`, `.grid`, `.pane`, `.row`, `.chip`, `.btn`, `.kbd`.
 
-For ready-made components, read `${CLAUDE_SKILL_DIR}/scripts/components.md`. For a rendered reference, open `${CLAUDE_SKILL_DIR}/scripts/component-gallery.html` with the full layer set. To show exactly what changed between two versions of a text, generate the `.diff` component with `${CLAUDE_SKILL_DIR}/scripts/diff_to_html.py`; see the “Line / word-level diff” section of `components.md`.
+For ready-made components, read `${CLAUDE_SKILL_DIR}/scripts/components.md`. For a rendered reference, open `${CLAUDE_SKILL_DIR}/scripts/component-gallery.html` with the full layer set. To show exactly what changed between two versions of a text, generate the `.diff` component with `${CLAUDE_SKILL_DIR}/scripts/diff_to_html.py`; see the “Line / word-level diff” section of `components.md`. For a 2D architecture / hub-and-spoke diagram, generate an inline `<svg>` with `${CLAUDE_SKILL_DIR}/scripts/diagram.py`; see the “SVG diagram” section of `components.md`.
 
 Cross-references must be real links. Never write a bare “§7”, “Draft 2”, or “the table above”; use `<a href="#stable-name">§7</a>`. Every `data-annotation-id` doubles as a link target: the builder mirrors it into `id`, and at layers 2–3 `interactions.js` also mirrors it in the browser. If building manually for layer 1, write the `id` attribute on the target yourself. Internal links are styled automatically, scroll smoothly, and flash the target on arrival; a “↩ Back to where you were” pill then returns the reader to their departure point. A link whose target does not exist renders red with a console warning — fix it before shipping.
 
