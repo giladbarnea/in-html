@@ -13,11 +13,12 @@
     "select",
     "[contenteditable]",
     "[data-annotation-ignore]",
-    // A glossary term's .tip popover is scaffolding for the definition, never an
-    // annotation target — hovering or clicking it must not ring a reticle. Scope
-    // to `.term .tip`: bare `.tip` also matches the `.callout.tip` variant, which
-    // IS annotatable, and ignoring it made the whole callout non-annotatable.
-    ".term .tip",
+    // A glossary term is scaffolding for its definition: pressing it expands the
+    // tooltip (its own on-press behavior), so the whole `.term` — word and
+    // popover — is never an annotation target. Scoped to `.term`, not bare
+    // `.tip`, so the inert `.callout.tip` variant stays annotatable (bare `.tip`
+    // matched it and made the whole callout non-annotatable).
+    ".term",
     // Links behave natively: a Shift+click opens a new window, ⌘+click a new
     // tab, a tap or plain click follows the href. Never a reticle, never a
     // captured gesture — so cross-references and external links just work,
@@ -1390,6 +1391,13 @@
   // nothing and their native press stands.
   const LONG_PRESS_MS = 750;
   const LONG_PRESS_MOVE_TOLERANCE = 12;
+  // Single source of truth for the hold length: the press-feedback animation
+  // reads its duration from this var, so the visual charge always lands with the
+  // timer instead of drifting against a hardcoded CSS duration.
+  document.documentElement.style.setProperty(
+    "--annotation-hold-ms",
+    `${LONG_PRESS_MS}ms`,
+  );
   let longPressOrigin = null;
   let longPressCandidate = null;
   let longPressTimer = null;
@@ -1423,7 +1431,6 @@
     if (event.pointerType !== "touch" || !event.isPrimary) {
       return;
     }
-    consumeLongPressClick = false;
     longPressOrigin = { x: event.clientX, y: event.clientY };
     longPressFired = false;
     longPressCandidate = isAnnotationUiTarget(event.target)
@@ -1482,6 +1489,29 @@
     }
     if (panelOpen() && !panelExpanded) {
       requestDismiss();
+    }
+  });
+
+  // Any new press starts clean, so a fired long-press that produced no trailing
+  // click (some mobile browsers) can't leave the swallow flag armed to eat a
+  // later, unrelated click — including a mouse click on a hybrid device. Capture
+  // phase, so it clears before the click-swallower could act on a new gesture.
+  document.addEventListener(
+    "pointerdown",
+    () => {
+      consumeLongPressClick = false;
+    },
+    true,
+  );
+
+  // A held press on Android fires `contextmenu` (~500ms) before the long-press
+  // timer; suppress it while a press is arming so the menu doesn't cut the hold
+  // short. Off a candidate the class is unset, so the native menu still works.
+  document.addEventListener("contextmenu", (event) => {
+    if (
+      document.documentElement.classList.contains("annotation-longpress-armed")
+    ) {
+      event.preventDefault();
     }
   });
 

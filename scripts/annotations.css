@@ -31,13 +31,14 @@
   filter: brightness(1.06);
 }
 /* Touch press feedback for the long-press-to-annotate gesture: a finger landing
-   on an annotatable block depresses it (0–140ms), then over the rest of the
-   hold (140–750ms, matching LONG_PRESS_MS) it charges linearly from depressed to
-   the reticle highlight — two axes, scale and wash — landing full as the
-   long-press fires and .annotation-hover takes over. The wash rides a pseudo-
-   element's opacity, not background-image (which is discrete and single-steps
-   instead of fading). JS drops the class on lift/move/cancel, so release snaps
-   back regardless of elapsed time. */
+   on an annotatable block depresses it, then over the rest of the hold it charges
+   linearly from depressed to the reticle highlight — two axes, scale and wash —
+   landing full as the long-press fires and .annotation-hover takes over. The hold
+   duration comes from --annotation-hold-ms, set by JS from LONG_PRESS_MS, so the
+   charge can't drift from the timer; 18.7% is the depress-bottom, ~140ms in at the
+   default. The wash rides a pseudo-element's opacity, not background-image (which
+   is discrete and single-steps instead of fading). JS drops the class on
+   lift/move/cancel, so release snaps back regardless of elapsed time. */
 @keyframes annotation-hold-depress {
   0% {
     transform: scale(1);
@@ -60,7 +61,8 @@
 }
 .annotation-pressing {
   position: relative;
-  animation: annotation-hold-depress 750ms linear forwards;
+  animation: annotation-hold-depress var(--annotation-hold-ms, 750ms) linear
+    forwards;
 }
 .annotation-pressing::after {
   content: "";
@@ -70,7 +72,8 @@
   pointer-events: none;
   background: color-mix(in srgb, var(--ink) 7%, transparent);
   opacity: 0;
-  animation: annotation-hold-wash 750ms linear forwards;
+  animation: annotation-hold-wash var(--annotation-hold-ms, 750ms) linear
+    forwards;
 }
 @media (prefers-reduced-motion: reduce) {
   .annotation-pressing {
