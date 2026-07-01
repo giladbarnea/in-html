@@ -14,8 +14,15 @@
     "[contenteditable]",
     "[data-annotation-ignore]",
     // A glossary term's .tip popover is scaffolding for the definition, never an
-    // annotation target — hovering or clicking it must not ring a reticle.
-    ".tip",
+    // annotation target — hovering or clicking it must not ring a reticle. Scope
+    // to `.term .tip`: bare `.tip` also matches the `.callout.tip` variant, which
+    // IS annotatable, and ignoring it made the whole callout non-annotatable.
+    ".term .tip",
+    // Links behave natively: a Shift+click opens a new window, ⌘+click a new
+    // tab, a tap or plain click follows the href. Never a reticle, never a
+    // captured gesture — so cross-references and external links just work,
+    // with nothing for the author to opt out of.
+    "a[href]",
   ].join(",");
   // Whole-annotation units: blocks the author marked, plus the components whose
   // meaningful unit is the whole box, not a leaf inside it — a step, a bar, a
@@ -41,6 +48,10 @@
   const annotationChoices = ["Yes", "Agreed", "Locked"];
   let activeChoiceMenu = null;
   let highlightedAnnotationElement = null;
+  // Set by a fired touch long-press so the capture-phase click handler swallows
+  // the one trailing click; cleared on the next touch pointerdown so it can
+  // never eat an unrelated later click.
+  let consumeLongPressClick = false;
 
   function elementHasOwnText(element) {
     return Array.from(element.childNodes).some(
@@ -51,7 +62,7 @@
   function normalizedElementText(element) {
     const clone = element.cloneNode(true);
     clone
-      .querySelectorAll("[data-annotation-ui], .tip")
+      .querySelectorAll("[data-annotation-ui], .term .tip")
       .forEach((node) => node.remove());
     return clone.textContent.trim().replace(/\s+/g, " ");
   }
@@ -710,10 +721,18 @@
   //   ※ marker / ⌘-click an annotated block → open it to read its notes
   //   Shift+click any block                  → open it with a focused composer
   //   plain click off the panel              → dismiss it
-  // Touch taps are handled by handlePanelTouchTap on pointerup instead.
+  // Touch uses long-press on pointerup instead; its trailing click is swallowed
+  // here so an interactive candidate under the finger doesn't also fire.
   document.addEventListener(
     "click",
     (event) => {
+      if (consumeLongPressClick) {
+        consumeLongPressClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       const marker = annotationMarkerFromEvent(event);
       if (marker) {
         const element = annotatedElementFromMarker(marker);
@@ -1362,51 +1381,107 @@
     panelHandle.addEventListener("pointercancel", endPanelDrag);
   }
 
-  // A page tap routes to the panel: an annotatable target opens or switches it;
-  // empty space (or a link) dismisses it only while collapsed — an expanded
-  // panel stays put, since reaching it signalled intent to dive in. Taps inside
-  // the panel, the confirm dialog, or on the ※ marker are handled elsewhere.
-  function handlePanelTouchTap(event) {
-    if (
-      event.target.closest?.(
+  // Touch annotation is a deliberate long press. A shorter press is a plain tap
+  // that native behavior owns — a link navigates, a glossary tip expands, a
+  // toggle toggles — so any element with its own on-press behavior just works
+  // with nothing to opt out of. Only a press held past LONG_PRESS_MS, on a real
+  // annotation candidate, opens the panel; the ignore list still fences off what
+  // is never a target (links, glossary tips, UI), so holding those annotates
+  // nothing and their native press stands.
+  const LONG_PRESS_MS = 750;
+  const LONG_PRESS_MOVE_TOLERANCE = 12;
+  let longPressOrigin = null;
+  let longPressCandidate = null;
+  let longPressTimer = null;
+  let longPressFired = false;
+
+  function isAnnotationUiTarget(target) {
+    return Boolean(
+      target.closest?.(
         ".annotation-panel, .annotation-confirm, .annotation-marker",
-      )
-    ) {
-      return;
-    }
-    const candidate = annotationCandidateFromPoint(event.clientX, event.clientY);
-    if (candidate) {
-      openOrSwitchPanel(candidate);
-      return;
-    }
-    if (panelOpen() && !panelExpanded) {
-      requestDismiss();
-    }
+      ),
+    );
   }
 
-  let touchTapOrigin = null;
+  // Immediate press feedback + reset. The candidate depresses and charges the
+  // instant a finger lands (see .annotation-pressing in annotations.css); this
+  // clears it on lift, move-away, or cancel — always, whatever time has passed.
+  function endTouchPress() {
+    if (longPressTimer !== null) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+    if (longPressCandidate) {
+      longPressCandidate.classList.remove("annotation-pressing");
+    }
+    document.documentElement.classList.remove("annotation-longpress-armed");
+    longPressOrigin = null;
+    longPressCandidate = null;
+  }
 
   document.addEventListener("pointerdown", (event) => {
     if (event.pointerType !== "touch" || !event.isPrimary) {
       return;
     }
-    touchTapOrigin = { x: event.clientX, y: event.clientY };
+    consumeLongPressClick = false;
+    longPressOrigin = { x: event.clientX, y: event.clientY };
+    longPressFired = false;
+    longPressCandidate = isAnnotationUiTarget(event.target)
+      ? null
+      : annotationCandidateFromPoint(event.clientX, event.clientY);
+    if (!longPressCandidate) {
+      return;
+    }
+    // Depress and charge now, and suppress the OS selection loupe for the hold.
+    longPressCandidate.classList.add("annotation-pressing");
+    document.documentElement.classList.add("annotation-longpress-armed");
+    longPressTimer = window.setTimeout(() => {
+      longPressTimer = null;
+      longPressFired = true;
+      openOrSwitchPanel(longPressCandidate);
+    }, LONG_PRESS_MS);
   });
 
-  document.addEventListener("pointercancel", () => {
-    touchTapOrigin = null;
+  document.addEventListener("pointermove", (event) => {
+    if (event.pointerType !== "touch" || !longPressOrigin) {
+      return;
+    }
+    if (
+      Math.hypot(
+        event.clientX - longPressOrigin.x,
+        event.clientY - longPressOrigin.y,
+      ) > LONG_PRESS_MOVE_TOLERANCE
+    ) {
+      endTouchPress();
+    }
+  });
+
+  document.addEventListener("pointercancel", (event) => {
+    if (event.pointerType === "touch") {
+      endTouchPress();
+    }
   });
 
   document.addEventListener("pointerup", (event) => {
-    if (event.pointerType !== "touch" || !touchTapOrigin) {
+    if (event.pointerType !== "touch" || !longPressOrigin) {
       return;
     }
-    const origin = touchTapOrigin;
-    touchTapOrigin = null;
-    const isTap =
-      Math.hypot(event.clientX - origin.x, event.clientY - origin.y) <= 12;
-    if (isTap) {
-      handlePanelTouchTap(event);
+    const target = event.target;
+    const fired = longPressFired;
+    endTouchPress();
+    if (fired) {
+      // The hold already opened the panel; swallow the trailing click (below) so
+      // an interactive candidate — a .bar, a chip — doesn't also fire.
+      consumeLongPressClick = true;
+      return;
+    }
+    // A short tap belongs to native behavior. The lone annotation concession is
+    // dismissing an open, collapsed panel when the tap lands off it.
+    if (isAnnotationUiTarget(target)) {
+      return;
+    }
+    if (panelOpen() && !panelExpanded) {
+      requestDismiss();
     }
   });
 

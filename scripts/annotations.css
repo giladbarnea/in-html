@@ -30,6 +30,67 @@
 :root[data-theme="dark"] .annotation-hover {
   filter: brightness(1.06);
 }
+/* Touch press feedback for the long-press-to-annotate gesture: a finger landing
+   on an annotatable block depresses it (0–140ms), then over the rest of the
+   hold (140–750ms, matching LONG_PRESS_MS) it charges linearly from depressed to
+   the reticle highlight — two axes, scale and wash — landing full as the
+   long-press fires and .annotation-hover takes over. The wash rides a pseudo-
+   element's opacity, not background-image (which is discrete and single-steps
+   instead of fading). JS drops the class on lift/move/cancel, so release snaps
+   back regardless of elapsed time. */
+@keyframes annotation-hold-depress {
+  0% {
+    transform: scale(1);
+  }
+  18.7% {
+    transform: scale(0.99);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes annotation-hold-wash {
+  0%,
+  18.7% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.annotation-pressing {
+  position: relative;
+  animation: annotation-hold-depress 750ms linear forwards;
+}
+.annotation-pressing::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  opacity: 0;
+  animation: annotation-hold-wash 750ms linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .annotation-pressing {
+    animation: none;
+    transform: scale(0.99);
+  }
+  .annotation-pressing::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+/* While a touch press is arming, suppress the OS selection loupe and callout so
+   the hold reads as "annotate", not "select text". Applied only for the hold,
+   so a short tap never feels it. */
+:root.annotation-longpress-armed,
+:root.annotation-longpress-armed * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 /* The unified annotation panel — one surface for the verdict, the notes, and
    the composer, on both pointer types. On a fine pointer it is a static side
    card (this block): positioned by JS in the corridor right of the column,
