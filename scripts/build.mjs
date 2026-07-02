@@ -27,8 +27,8 @@ Options:
   --out DIR                     Output directory. Default: a new /tmp/inhtml-<title>-* dir.
   --also-layer1 FILE            Also write a self-contained layer-1 HTML file.
   --also-layer1-icloud FILE     Also write a self-contained layer-1 file into iCloud Drive.
-  --port PORT                   Port for the layer-3 annotation server. Default: first free 8765-8799.
-  --no-serve                    Build layer 3 without starting annotation-writer.mjs.
+  --port PORT                   Port for the preview server (layer 2 serve.mjs / layer 3 annotation-writer.mjs). Default: first free 8765-8799.
+  --no-serve                    Build files only; do not start a preview server.
   --allow-missing-links         Warn instead of failing on broken internal #links.
   -h, --help                    Show this help.
 
@@ -203,6 +203,9 @@ async function copyLayerAssets(layer, outputDirectory) {
   if (layer >= 2) {
     await copyFromScripts('interactions.js', outputDirectory);
   }
+  if (layer === 2) {
+    await copyFromScripts('serve.mjs', outputDirectory);
+  }
   if (layer >= 3) {
     await copyFromScripts('annotations.css', outputDirectory);
     await copyFromScripts('annotations.js', outputDirectory);
@@ -346,11 +349,11 @@ async function httpResponds(port) {
   });
 }
 
-async function startAnnotationServer(outputDirectory, requestedPort) {
+async function startServer(outputDirectory, requestedPort, scriptName, extraEnv = {}) {
   const port = await choosePort(requestedPort);
   const logPath = path.join(outputDirectory, 'server.log');
   const stdout = fsSync.openSync(logPath, 'a');
-  const child = spawn(process.execPath, ['annotation-writer.mjs'], {
+  const child = spawn(process.execPath, [scriptName], {
     cwd: outputDirectory,
     detached: true,
     stdio: ['ignore', stdout, stdout],
@@ -358,7 +361,7 @@ async function startAnnotationServer(outputDirectory, requestedPort) {
       ...process.env,
       PORT: String(port),
       SERVE_DIR: outputDirectory,
-      ANNOTATIONS_FILE: path.join(outputDirectory, 'annotations.json'),
+      ...extraEnv,
     },
   });
 
@@ -417,9 +420,15 @@ async function main() {
     });
   }
 
-  const server = options.layer === 3 && options.serve
-    ? await startAnnotationServer(outputDirectory, options.port)
-    : null;
+  // Layer 3 runs annotation-writer.mjs (serves + persists notes); layer 2 runs the
+  // static serve.mjs. Layer 1 is a single self-contained file, so it never serves.
+  let server = null;
+  if (options.serve && options.layer !== 1) {
+    const [scriptName, extraEnv] = options.layer === 3
+      ? ['annotation-writer.mjs', {ANNOTATIONS_FILE: path.join(outputDirectory, 'annotations.json')}]
+      : ['serve.mjs', {}];
+    server = await startServer(outputDirectory, options.port, scriptName, extraEnv);
+  }
 
   printSummary({
     layer: options.layer,

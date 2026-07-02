@@ -1,7 +1,7 @@
 ---
 name: in-html
 description: Build a reusable local HTML page for a CLI-agent review loop, with selectable boilerplate layers — styling, browser interactions, and optional Shift+click annotations persisted to JSON.
-last_updated: 2026-06-29
+last_updated: 2026-07-02 10:18
 ---
 
 # in-html
@@ -15,7 +15,7 @@ Do not decorate the same prose in boxes; identify the hidden shape of the materi
 Choose the richest layer the environment supports:
 
 1. **Layer 1 — style only.** A single self-contained HTML file with no JavaScript. Use only when the delivery channel cannot run JavaScript.
-2. **Layer 2 — style plus interactions.** Adds browser interactions such as segmented tabs, highlights, copy buttons, glossary tooltips, section navigation, and theme switching. Use when JavaScript works but local writes or a Node server do not.
+2. **Layer 2 — style plus interactions.** Adds browser interactions such as segmented tabs, highlights, copy buttons, glossary tooltips, section navigation, and theme switching. Use when JavaScript works but you do not need annotations saved to disk. The builder ships a static `serve.mjs` and starts it, so the page is viewable at a URL (it also opens fine as a plain file).
 3. **Layer 3 — annotated review loop.** Adds Shift+click annotations saved to JSON on disk, so the user can comment in the page and tell you when to read the saved feedback. This is the default when local Node can run.
 
 Do not ask which layer to use unless the user's environment or intent is unclear. Layer 3 is almost always the right choice because it keeps the rich page experience and lets the user talk back at little cost. Tell the user annotations are enabled and that they can comment in the page, then tell you when they are done.
@@ -40,7 +40,7 @@ When local writes are available, prefer the builder over hand-copying templates.
   --also-layer1-icloud domainful-page.html
 ```
 
-The builder copies the right template/assets, injects the fragment, mirrors each `data-annotation-id` into an `id` when missing, validates internal `#links`, creates `annotations.json`, starts the layer-3 annotation server, and writes any requested self-contained layer-1 copies. Use `--no-serve` when you only need files. Use `--allow-missing-links` only while drafting; final pages should validate cleanly.
+The builder copies the right template/assets, injects the fragment, mirrors each `data-annotation-id` into an `id` when missing, validates internal `#links`, creates `annotations.json`, starts a preview server (the static `serve.mjs` at layer 2, the `annotation-writer.mjs` annotation server at layer 3), and writes any requested self-contained layer-1 copies. Use `--no-serve` when you only need files. Use `--allow-missing-links` only while drafting; final pages should validate cleanly.
 
 The content file is an HTML body fragment. A full HTML file also works — only its `<body>` is injected. Markdown conversion is intentionally not part of this command; use the component vocabulary below when shaping the content.
 
@@ -69,15 +69,19 @@ Then copy `page.html` wherever the delivery channel can pick it up.
 
 ### Layers 1+2: style plus interactions
 
-Use when JavaScript works, but filesystem writes or a local Node server are unavailable.
+Use when JavaScript works but you do not need on-disk annotations.
 
 ```bash
 workdir=$(mktemp -d)
 cp "${CLAUDE_SKILL_DIR}/templates/template-interactive.html" "$workdir/index.html"
 cp "${CLAUDE_SKILL_DIR}/scripts/style.css" "$workdir/"
 cp "${CLAUDE_SKILL_DIR}/scripts/interactions.js" "$workdir/"
+cp "${CLAUDE_SKILL_DIR}/scripts/serve.mjs" "$workdir/"
 cd "$workdir"
+node serve.mjs   # then open http://127.0.0.1:8765/ — or skip it and open index.html directly
 ```
+
+`serve.mjs` is a dependency-free static server (the sibling of layer 3's `annotation-writer.mjs`, minus annotation persistence). It reads `PORT` and `SERVE_DIR` from the environment, defaulting to `8765` and the current directory.
 
 ### Layers 1+2+3: full annotated review page
 
@@ -146,6 +150,7 @@ At layers 2 and 3 the page is automatically wrapped in a three-pane docs frame b
 Use normal HTML first: `h1`, `.sub`, `.lead`, `h2`, `p`, `aside.note`, `.card`, `.callout`, `.grid`, `.pane`, `.row`, `.chip`, `.btn`, `.kbd`.
 
 For ready-made components, read `${CLAUDE_SKILL_DIR}/scripts/components.md`. For a rendered reference, open `${CLAUDE_SKILL_DIR}/scripts/component-gallery.html` with the full layer set. To show exactly what changed between two versions of a text, generate the `.diff` component with `${CLAUDE_SKILL_DIR}/scripts/diff_to_html.py`; see the “Line / word-level diff” section of `components.md`. For a 2D architecture / hub-and-spoke diagram, generate an inline `<svg>` with `${CLAUDE_SKILL_DIR}/scripts/diagram.py`; see the “SVG diagram” section of `components.md`.
+Advanced SVG diagrams: if the content merits more than basic few-blocks-few-arrows diagrams, clone https://github.com/tt-a1i/archify to a tmp location, read its docs and utilize it.
 
 Cross-references must be real links. Never write a bare “§7”, “Draft 2”, or “the table above”; use `<a href="#stable-name">§7</a>`. Every `data-annotation-id` doubles as a link target: the builder mirrors it into `id`, and at layers 2–3 `interactions.js` also mirrors it in the browser. If building manually for layer 1, write the `id` attribute on the target yourself. Internal links are styled automatically, scroll smoothly, and flash the target on arrival; a “↩ Back to where you were” pill then returns the reader to their departure point. A link whose target does not exist renders red with a console warning — fix it before shipping.
 
